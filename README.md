@@ -16,7 +16,7 @@ The following diagram illustrates the data flow from lead ingestion to CRM synch
 ```mermaid
 graph TD
     User([End User]) -->|Submits Web Form| Flask[Flask App]
-    ThirdParty([Zapier / Webflow]) -->|POST JSON| Webhook[/api/webhook]
+    ThirdParty([Zapier / Webflow]) -->|POST JSON| Webhook["/api/webhook"]
     Webhook --> Engine[Processing Engine]
     Flask --> Engine
     
