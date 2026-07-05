@@ -338,7 +338,12 @@
                     body: JSON.stringify(payload)
                 });
                 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    throw new Error("Server returned an HTML error page. The server might be waking up from sleep, or it timed out. Please try submitting again!");
+                }
                 
                 resultPanel.style.display = 'block';
                 resultMessage.textContent = data.message;
@@ -361,7 +366,7 @@
                 console.error('Error:', error);
                 resultPanel.style.display = 'block';
                 resultPanel.classList.add('error');
-                resultMessage.textContent = 'Server Error. Check console logs.';
+                resultMessage.textContent = error.message || 'Server Error. Check console logs.';
                 scoreBadge.style.display = 'none';
             } finally {
                 submitBtn.textContent = originalText;

@@ -135,6 +135,14 @@ def webhook():
     else:
         return jsonify({"success": False, "error": "Processing failed"}), 500
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Return JSON instead of HTML for HTTP errors
+    import traceback
+    with open("crash.log", "w", encoding="utf-8") as f:
+        f.write(traceback.format_exc())
+    return jsonify({"status": "error", "message": f"Server Exception: {str(e)}"}), 500
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
