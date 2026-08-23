@@ -3,9 +3,9 @@ import hubspot
 from hubspot.crm.contacts import SimplePublicObjectInputForCreate, ApiException
 from hubspot.crm.objects.notes import SimplePublicObjectInputForCreate as NoteInput
 
-def push_to_hubspot(name, email, company, score, category, reason, email_draft):
+def push_to_hubspot(name, email, phone="", product="Aneevarp Solutions", category="Customer Support", priority="Medium", score=50, summary="", email_draft="", user_message="", rating=None, company="", role=""):
     """
-    Creates a Contact in HubSpot and attaches a Note with the AI analysis.
+    Creates/Updates a Contact in HubSpot and attaches a rich Note with the Aneevarp Solutions AI analysis.
     """
     token = os.getenv("HUBSPOT_ACCESS_TOKEN")
     if not token or not token.startswith("pat-"):
@@ -15,21 +15,28 @@ def push_to_hubspot(name, email, company, score, category, reason, email_draft):
     client = hubspot.Client.create(access_token=token)
     
     # Split name into first and last
-    parts = name.split(" ", 1)
+    parts = name.strip().split(" ", 1)
     firstname = parts[0]
     lastname = parts[1] if len(parts) > 1 else ""
     
     # 1. Create the Contact
+    company_val = company if company else f"{product} User"
     properties = {
         "firstname": firstname,
         "lastname": lastname,
         "email": email,
-        "company": company,
-        "lifecyclestage": "lead"
+        "company": company_val,
+        "lifecyclestage": "lead" if "B2B" in category or "Partnership" in category else "customer"
     }
+
+    if phone:
+        properties["phone"] = phone
+    if role:
+        properties["jobtitle"] = role
 
     simple_public_object_input_for_create = SimplePublicObjectInputForCreate(properties=properties)
     
+    contact_id = None
     try:
         api_response = client.crm.contacts.basic_api.create(
             simple_public_object_input_for_create=simple_public_object_input_for_create
@@ -49,23 +56,35 @@ def push_to_hubspot(name, email, company, score, category, reason, email_draft):
                     print("Conflict error but no Existing ID found.")
                     return False
             except Exception as parse_e:
-                print("Failed to parse existing contact ID: %s" % parse_e)
+                print(f"Failed to parse existing contact ID: {parse_e}")
                 return False
         else:
-            print("Exception when communicating with HubSpot: %s\n" % e)
+            print(f"Exception when communicating with HubSpot: {e}")
             return False
             
+    if not contact_id:
+        return False
+
     try:
-        # 2. Attach a Note with the AI Analysis & Email Draft
+        # 2. Attach a Rich Note with the AI Analysis & Drafted Reply
+        rating_line = f"<b>User Rating:</b> {rating}/5<br>" if rating is not None else ""
+        phone_line = f"<b>Phone:</b> {phone}<br>" if phone else ""
+        
         note_body = (
-            f"<b>AI Lead Analysis</b><br>"
-            f"<b>Score:</b> {score}/100 ({category})<br>"
-            f"<b>Reasoning:</b> {reason}<br><br>"
-            f"<b>AI Drafted Email:</b><br>{email_draft.replace(chr(10), '<br>')}"
+            f"<h3>🏢 Aneevarp Solutions - {product} Inbound Ticket</h3>"
+            f"<b>Category:</b> {category} (Priority: {priority})<br>"
+            f"<b>AI Score:</b> {score}/100<br>"
+            f"{rating_line}"
+            f"{phone_line}"
+            f"<b>Executive Summary:</b> {summary}<br>"
+            f"<hr>"
+            f"<b>Original Message:</b><br>{user_message.replace(chr(10), '<br>')}<br>"
+            f"<hr>"
+            f"<b>AI Suggested Response:</b><br>{email_draft.replace(chr(10), '<br>')}"
         )
         
         note_properties = {
-            "hs_timestamp": "2024-01-01T00:00:00Z", # Placeholder, HubSpot overrides with current
+            "hs_timestamp": "2026-08-23T00:00:00Z",
             "hs_note_body": note_body
         }
         
@@ -74,15 +93,15 @@ def push_to_hubspot(name, email, company, score, category, reason, email_draft):
             associations=[
                 {
                     "to": {"id": contact_id}, 
-                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}] # 202 is Contact to Note
+                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}]
                 }
             ]
         )
         
         client.crm.objects.notes.basic_api.create(simple_public_object_input_for_create=note_input)
-        print("Successfully attached AI Analysis Note to Contact!")
+        print("Successfully attached AI Inbound Note to Contact in HubSpot!")
         return True
         
     except ApiException as e:
-        print("Exception when communicating with HubSpot: %s\n" % e)
+        print(f"Exception when attaching Note to HubSpot Contact: {e}")
         return False

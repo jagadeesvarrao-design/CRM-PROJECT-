@@ -3,10 +3,10 @@ import json
 from google import genai
 from google.genai import types
 
-def analyze_lead(name, email, company, role, company_size, message, scraped_data=""):
+def analyze_inbound_inquiry(product, name, email, phone="", message="", rating=None, inquiry_type="general", company="", role=""):
     """
-    Passes the lead data to Gemini to get a lead score and an email draft.
-    Returns a dictionary with the results.
+    Analyzes multi-product inbound leads/inquiries for Aneevarp Solutions (ZenResume & ZenScout AI).
+    Categorizes the ticket, computes priority score (0-100), and drafts an official response.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -15,57 +15,79 @@ def analyze_lead(name, email, company, role, company_size, message, scraped_data
     client = genai.Client(api_key=api_key)
     
     prompt = f"""
-    You are an expert B2B Sales Operations Analyst.
-    Analyze the following inbound lead using the scoring rubric below.
-    
-    Here is the data we scraped from their company website:
-    <website_data>
-    {scraped_data}
-    </website_data>
+    You are the Senior Operations & Customer Success Intelligence Engine for Aneevarp Solutions (MSME: UDYAM-AP-10-0144446),
+    the software parent company operating:
+    1. ZenResume (https://www.zenresume.online) - Free ATS Resume Builder & Career Hub
+    2. ZenScout AI (https://ai-job-search-agent-chi.vercel.app) - Autonomous AI Job Search & Matching Agent
 
-    Use this scraped website data to write an incredibly hyper-personalized outreach email. Reference specific things they do or sell based on the website data so it proves we actually researched them!
-    
-    Lead Details:
-    - Name: {name}
-    - Email: {email}
-    - Company: {company}
-    - Role/Job Title: {role}
-    - Company Size: {company_size}
-    - Pain Point / Message: {message}
-    
-    Identity Verification Rules:
-    If the email is a public email (e.g. gmail.com, yahoo.com):
-    - If they claim a low-level role (e.g., Manager, Employee, Student), set "is_fake_identity" to true, and set "rejection_message" to "Please use your official company email ID."
-    - If they claim a high-level role (e.g., CEO, MD, Founder), check the scraped website data. If the website data explicitly lists someone else as the CEO/MD or if their name clearly doesn't match the actual leadership listed, set "is_fake_identity" to true and set "rejection_message" to "dont fake your idententity sir". If the website data is missing leadership names, give them the benefit of the doubt and set "is_fake_identity" to false.
-    - If it's a valid B2B email, set "is_fake_identity" to false.
+    Analyze the following inbound submission from our product ecosystem:
 
-    Scoring Rubric (100 points total):
-    1. Role/Decision Maker (20 pts): C-level, VP, or Director gets 20. Managers get 10. Others get 0.
-    2. Company Size (20 pts): 500+ gets 20. 201-500 gets 15. 51-200 gets 10. 1-50 gets 0.
-    3. Pain Point Clarity (20 pts): Clear, specific business problem gets 20. Vague gets 10. Blank/irrelevant gets 0.
-    4. Budget/Timeline (20 pts): Mention of urgency (e.g., Q3, ASAP) gets 20. General interest gets 0.
-    5. Overall Fit (20 pts): Does this sound like a real, high-value B2B lead? Yes=20, No=0.
-    
-    Task:
-    1. Verify their identity based on the rules above.
-    2. Calculate the final score (0 to 100).
-    3. Categorize the lead: "Hot" (80-100), "Warm" (50-79), or "Cold" (Below 50).
-    4. Provide a 1-sentence reason for this score.
-    5. Draft a highly personalized introductory email (under 100 words) from our sales team to this lead, mentioning their specific pain point. DO NOT use generic placeholders like [Your Name]. Use "The Sales Team" instead.
+    Submission Details:
+    - Product: {product if product else "Aneevarp Solutions (General)"}
+    - Submitter Name: {name}
+    - Submitter Email: {email}
+    - Submitter Phone: {phone if phone else "Not provided"}
+    - Declared Type: {inquiry_type}
+    - User Rating/Score: {rating if rating is not None else "Not provided"}
+    - Company / Institution: {company if company else "Not specified"}
+    - Role: {role if role else "Not specified"}
+    - Message / Inquiry: {message}
+
+    Your Tasks:
+    1. Categorize into EXACTLY ONE of these categories:
+       - "B2B Enterprise Lead" (HR Tech, Corporate Hiring, SaaS integration, recruitment agencies)
+       - "University Placement Partnership" (Colleges, universities, TPOs, student placement cells)
+       - "Feature Suggestion" (Product ideas, UI/UX feedback, new feature requests)
+       - "Customer Support" (Usage questions, account assistance, resume formatting/download questions, matching queries)
+       - "Bug Report" (Errors, crashes, broken buttons, UI glitches, parsing issues)
+
+    2. Priority Level: "Urgent" (Critical bugs or major B2B/College deals), "High" (Partnerships, serious bugs, high-intent enterprise), "Medium" (General support, helpful feature ideas), "Low" (Minor feedback/vague queries).
+
+    3. Lead Score (0 to 100):
+       - B2B Enterprise / University Placement: 75 - 100 (Higher if company/college specified with clear intent).
+       - Bug Report: 60 - 90 (Higher if high severity).
+       - Feature Suggestion / Customer Support: 40 - 75.
+       - Vague / Spam: 0 - 30.
+
+    4. Executive Summary (1-2 sentences): A crisp summary for the Founder & Operations Team.
+
+    5. Personalized Drafted Response:
+       - Written from the perspective of "Aneevarp Solutions Support Team" or the dedicated product team ("The ZenResume Team" or "The ZenScout AI Team").
+       - Empathetic, highly professional, warm, addressing their specific message/problem directly.
+       - Mention relevant product links (e.g. https://www.zenresume.online or https://ai-job-search-agent-chi.vercel.app).
+       - Keep it concise, friendly, and actionable (under 120 words).
     """
 
-    # Define the expected JSON structure
     response_schema = {
         "type": "OBJECT",
         "properties": {
-            "score": {"type": "INTEGER", "description": "The calculated lead score (0-100)"},
-            "category": {"type": "STRING", "description": "Hot, Warm, or Cold"},
-            "reason": {"type": "STRING", "description": "1-sentence reason for the score"},
-            "email_draft": {"type": "STRING", "description": "The personalized email draft"},
-            "is_fake_identity": {"type": "BOOLEAN", "description": "True if the lead is faking their identity based on the rules."},
-            "rejection_message": {"type": "STRING", "description": "The custom rejection message if is_fake_identity is true."}
+            "category": {
+                "type": "STRING",
+                "description": "One of: B2B Enterprise Lead, University Placement Partnership, Feature Suggestion, Customer Support, Bug Report"
+            },
+            "priority": {
+                "type": "STRING",
+                "description": "Urgent, High, Medium, or Low"
+            },
+            "score": {
+                "type": "INTEGER",
+                "description": "Calculated score from 0 to 100"
+            },
+            "summary": {
+                "type": "STRING",
+                "description": "Short executive summary for the leadership team"
+            },
+            "email_draft": {
+                "type": "STRING",
+                "description": "Warm, branded customer response"
+            },
+            "action_items": {
+                "type": "ARRAY",
+                "items": {"type": "STRING"},
+                "description": "1-3 recommended immediate action items for the operations team"
+            }
         },
-        "required": ["score", "category", "reason", "email_draft", "is_fake_identity", "rejection_message"]
+        "required": ["category", "priority", "score", "summary", "email_draft", "action_items"]
     }
 
     try:
@@ -75,17 +97,17 @@ def analyze_lead(name, email, company, role, company_size, message, scraped_data
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=response_schema,
-                temperature=0.2, # Low temperature for more consistent scoring
+                temperature=0.2,
             ),
         )
         return json.loads(response.text)
     except Exception as e:
-        print(f"Error calling Gemini: {e}")
+        print(f"Error calling Gemini for inquiry analysis: {e}")
         return {
-            "score": 0,
-            "category": "Error",
-            "reason": str(e),
-            "email_draft": "Could not generate email due to an error.",
-            "is_fake_identity": False,
-            "rejection_message": ""
+            "category": "Customer Support",
+            "priority": "Medium",
+            "score": 50,
+            "summary": f"Inbound submission received for {product}: {message[:100]}",
+            "email_draft": f"Dear {name},\n\nThank you for reaching out to us at Aneevarp Solutions regarding {product}. We have received your inquiry and our team is reviewing it. We will get back to you shortly.\n\nBest regards,\nThe {product} Team\nAneevarp Solutions",
+            "action_items": ["Review inquiry manually in dashboard", "Follow up with user via email"]
         }

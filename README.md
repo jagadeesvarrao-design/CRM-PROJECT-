@@ -1,165 +1,140 @@
-# 🚀 AI Sales Operations Agent
+# 🏢 Aneevarp Solutions — Central Inbound Operations & Lead Hub
 
-![Python](https://img.shields.io/badge/Python-3.14-blue?logo=python)
-![Flask](https://img.shields.io/badge/Flask-3.1.3-lightgrey?logo=flask)
-![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-orange?logo=google)
-![HubSpot](https://img.shields.io/badge/HubSpot-CRM-ff7a59?logo=hubspot)
+![Parent Enterprise](https://img.shields.io/badge/Enterprise-Aneevarp_Solutions-blue?style=flat-square)
+![MSME Registration](https://img.shields.io/badge/MSME-UDYAM--AP--10--0144446-purple?style=flat-square)
+![Flagship 1](https://img.shields.io/badge/Product-ZenResume-emerald?style=flat-square&logo=googlechrome)
+![Flagship 2](https://img.shields.io/badge/Product-ZenScout_AI-indigo?style=flat-square)
+![AI Model](https://img.shields.io/badge/Engine-Gemini_2.5_Flash-orange?style=flat-square)
+![CRM](https://img.shields.io/badge/CRM-HubSpot-ff7a59?style=flat-square)
 
-An enterprise-grade, autonomous inbound lead processing engine. This system intercepts inbound leads (via web forms or webhooks), performs real-time web scraping, validates user identity to prevent fraud, and uses **Google Gemini 2.5 Flash** to score the lead and draft hyper-personalized outreach emails. Qualified leads are automatically pushed to **HubSpot CRM**, and high-value targets instantly trigger **Twilio WhatsApp** and **Gmail** alerts.
+An enterprise-grade, multi-product inbound operations and intelligence engine tailored for **Aneevarp Solutions** (MSME: `UDYAM-AP-10-0144446`), the software parent enterprise operating:
+1. 📄 **ZenResume** ([zenresume.online](https://www.zenresume.online)) — Free ATS Resume Builder & Career Hub
+2. 🤖 **ZenScout AI** ([ai-job-search-agent-chi.vercel.app](https://ai-job-search-agent-chi.vercel.app)) — Autonomous AI Job Search & Matching Agent
+
+Whenever users, colleges, or companies submit feedback, support tickets, partnership requests, or B2B enterprise leads on ZenResume or ZenScout AI, this central hub ingests the payload, categorizes it with Gemini 2.5 Flash, updates HubSpot CRM, alerts the founder via Twilio WhatsApp, notifies central operations via email, and dispatches a branded customer autoresponder.
 
 ---
 
-## 🏗️ System Architecture
-
-The following diagram illustrates the data flow from lead ingestion to CRM synchronization and alerting.
+## 🏗️ Multi-Product Inbound Architecture
 
 ```mermaid
 graph TD
-    User([End User]) -->|Submits Web Form| Flask[Flask App]
-    ThirdParty([Zapier / Webflow]) -->|POST JSON| Webhook["/api/webhook"]
-    Webhook --> Engine[Processing Engine]
-    Flask --> Engine
+    ZenResume([📄 ZenResume Frontend]) -->|POST /api/inbound-lead| Hub[Aneevarp Central Hub]
+    ZenScout([🤖 ZenScout AI Frontend]) -->|POST /api/inbound-lead| Hub
+    ThirdParty([External Webhooks / Form]) -->|POST /api/webhook| Hub
     
-    Engine --> Scraper[Web Scraper]
-    Scraper -->|Extracts Company Data| Engine
+    Hub --> Engine[AI Intelligence & Scoring Engine]
+    Engine --> AI[Google Gemini 2.5 Flash]
+    AI -->|Categorization, Priority, Summary & Draft| Hub
     
-    Engine --> AI[Gemini 2.5 AI]
-    AI -->|Validates Identity, Scores Lead, Drafts Email| Engine
+    Hub --> CRM[HubSpot CRM API]
+    CRM -->|Upsert Contact & Attach Detailed Note| DB[(HubSpot Contacts)]
     
-    Engine -->|If Fake Identity| Reject[Block Request & Return 400]
-    Engine -->|If Valid Lead| CRM[HubSpot API]
-    
-    CRM -->|Upserts Contact & Note| DB[(HubSpot CRM)]
-    
-    Engine -->|If Score >= 70| Alerts{High-Value Trigger}
-    Alerts -->|Yes| Email[Gmail Auto-responder]
-    Alerts -->|Yes| WhatsApp[Twilio Notification]
+    Hub --> WhatsApp[Twilio WhatsApp Notification]
+    Hub --> TeamEmail[Operations Email: aneevarpsolutions@gmail.com]
+    Hub --> Autoresponder[Branded Customer Autoresponder]
 ```
 
 ---
 
-## ✨ Core Features
+## 🎯 Intelligent Categorization Engine
 
-- **Multi-Channel Ingestion:** Accepts leads via a beautiful frontend UI or headlessly via REST API webhooks.
-- **Intelligent Web Scraping:** Automatically visits the lead's company website to extract their core business offerings.
-- **AI Identity Verification:** Cross-references the lead's claimed role and name against their website's leadership team to automatically block impersonators.
-- **Automated Lead Scoring:** Uses a strict 100-point B2B rubric to categorize leads into Hot, Warm, or Cold based on company size, role, and budget urgency.
-- **Hyper-Personalization:** Gemini drafts a unique introductory email referencing specific data extracted from the company's website.
-- **HubSpot Integration:** Creates or updates contacts seamlessly, preventing duplicates via 409 Conflict handling, and logs the AI analysis as a CRM Note.
+Incoming tickets are classified into one of 5 enterprise categories:
 
----
-
-## 🕵️ AI Anti-Fraud Workflow
-
-To maintain CRM data integrity, the system employs a multi-stage identity verification process before any database mutation occurs.
-
-```mermaid
-flowchart TD
-    Start[Lead Submitted] --> EmailCheck{Is Email B2B?}
-    
-    EmailCheck -->|Yes| Valid[Valid B2B Lead]
-    EmailCheck -->|No Public Email| RoleCheck{Is Claimed Role C-Level?}
-    
-    RoleCheck -->|No| Reject1[Reject: Request Official Email]
-    RoleCheck -->|Yes| Scrape[Scrape Provided Website]
-    
-    Scrape --> Match{Does Name Match Leadership?}
-    Match -->|Yes or Not Listed| Valid
-    Match -->|No| Reject2[Reject: Identity Fraud Detected]
-    
-    Valid --> Proceed[Proceed to Lead Scoring]
-```
-
----
-
-## ⚙️ Installation & Setup
-
-### Prerequisites
-- Python 3.10+
-- Google Gemini API Key
-- HubSpot Private App Token (with `crm.objects.contacts.write` and `crm.objects.notes.write` scopes)
-- Twilio Account SID & Auth Token
-- Gmail App Password
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/your-org/ai-sales-agent.git
-cd ai-sales-agent
-```
-
-### 2. Install Dependencies
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 3. Environment Configuration
-Create a `.env` file in the root directory and populate it with your credentials:
-```env
-GEMINI_API_KEY=your_gemini_key
-HUBSPOT_ACCESS_TOKEN=pat-na1-...
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_PHONE_NUMBER=whatsapp:+14155238886
-YOUR_WHATSAPP_NUMBER=whatsapp:+1234567890
-GMAIL_USER=your_email@gmail.com
-GMAIL_APP_PASSWORD=your_app_password
-```
-
-### 4. Run the Application
-```bash
-python app.py
-```
-The application will start on `http://127.0.0.1:5000`.
+| Category | Description | Target Flow |
+| :--- | :--- | :--- |
+| **`B2B Enterprise Lead`** | Corporate licensing, HR Tech integration, recruitment platform tie-ups | High priority score, logged to CRM as qualified lead, instant founder alert. |
+| **`University Placement Partnership`** | Colleges, TPOs, university placement cells wanting student bulk licenses | High priority score, CRM lead record created, partnership draft prepared. |
+| **`Feature Suggestion`** | User feedback, product ideas, UI/UX recommendations | Routed to product roadmap backlog, auto-thanked. |
+| **`Customer Support`** | Account questions, resume parsing help, job search assistance | Empathetic resolution draft generated and sent to user. |
+| **`Bug Report`** | Error logs, broken buttons, UI glitches, 403/500 errors | Flagged as urgent/high priority, technical note created in CRM. |
 
 ---
 
 ## 🌐 API Reference
 
-### `POST /api/webhook`
+### `POST /api/inbound-lead` (CORS Enabled)
 
-Ingest a lead programmatically from any third-party service.
+Integrate this endpoint directly from your React, Next.js, or HTML frontends.
 
-**Request Body (JSON):**
+**Request Payload:**
 ```json
 {
-  "name": "Jane Doe",
-  "email": "jane@enterprise.com",
-  "company": "Enterprise Corp",
-  "role": "VP of Engineering",
-  "company_size": "500+",
-  "website_url": "https://enterprise.com",
-  "message": "We are looking to upgrade our infrastructure in Q3."
+  "product": "ZenResume",
+  "name": "Dr. Rajesh Kumar",
+  "email": "placements@university.edu.in",
+  "phone": "+91 9876543210",
+  "type": "partnership",
+  "company": "Andhra University",
+  "role": "Placement Director",
+  "rating": 5,
+  "message": "We want to partner with ZenResume for 2,000 engineering students in our 2026 placement drive."
 }
 ```
 
-**Success Response (200 OK):**
+**Response (200 OK):**
 ```json
 {
-  "success": true,
-  "lead_score": 90,
-  "status": "Processed"
-}
-```
-
-**Fraud Rejection Response (400 Bad Request):**
-```json
-{
-  "status": "error",
-  "message": "Please use your official company email ID."
+  "status": "success",
+  "product": "ZenResume",
+  "category": "University Placement Partnership",
+  "priority": "High",
+  "score": 95,
+  "summary": "University Placement Director reaching out to onboard 2,000 students onto ZenResume for 2026 drive.",
+  "crm_synced": true,
+  "autoresponder_sent": true,
+  "email_draft": "Dear Dr. Rajesh Kumar, thank you for reaching out to ZenResume..."
 }
 ```
 
 ---
 
-## ☁️ Deployment (Heroku / Render)
+## 🚀 Live Integration Snippet (Client-Side JS)
 
-This application is fully container-ready and configured for PaaS deployment. 
+```javascript
+async function submitInboundTicket(formData) {
+  const response = await fetch("https://your-crm-hub.onrender.com/api/inbound-lead", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      product: "ZenScout AI",
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      type: "support",
+      rating: 5,
+      message: formData.message
+    })
+  });
+  return await response.json();
+}
+```
 
-1. Connect your repository to your PaaS provider.
-2. The platform will automatically detect the `Procfile` and use `gunicorn` to serve the application.
-3. Add your `.env` variables to the provider's Environment settings.
-4. Deploy!
+---
 
-*(Note: The `app.py` is configured to dynamically bind to `$PORT` via `0.0.0.0` as required by cloud environments).*
+## ⚙️ Environment Variables (`.env`)
+
+```env
+# Google Gemini Intelligence
+GEMINI_API_KEY=your_gemini_api_key
+
+# HubSpot CRM API
+HUBSPOT_ACCESS_TOKEN=pat-na2-...
+
+# Email Notifications & Autoresponder
+SENDER_EMAIL=your_email@gmail.com
+SENDER_APP_PASSWORD=your_gmail_app_password
+CRM_TEAM_EMAIL=aneevarpsolutions@gmail.com
+
+# Twilio WhatsApp Alerts
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_WHATSAPP_NUMBER=+14155238886
+CRM_HEAD_WHATSAPP_NUMBER=+918790906267
+```
+
+---
+
+## ☁️ Deployment
+
+Configured with `gunicorn app:app --timeout 120` in `Procfile` and full CORS support for instant deployment on **Render**, **Heroku**, or **AWS**.

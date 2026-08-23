@@ -1,147 +1,202 @@
 import os
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Import our custom modules
-from ai_agent import analyze_lead
+# Import customized Aneevarp Solutions modules
+from ai_agent import analyze_inbound_inquiry
 from crm_manager import push_to_hubspot
 from notifier import send_email_alert, send_whatsapp_alert, send_customer_autoresponder
-from scraper import scrape_website
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# Basic Domain Validation (to filter out fake consumer leads)
-PUBLIC_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com']
+# Enable CORS for all routes (allows requests from zenresume.online, vercel, webflow, localhost, etc.)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-def is_b2b_email(email):
-    """Returns False if the email uses a public domain provider, True otherwise."""
-    domain = email.split('@')[-1].lower()
-    return domain not in PUBLIC_DOMAINS
-
-def process_lead_data(data):
+def process_inbound_ticket(data):
     """
-    Core engine logic separated from Flask routing.
-    This can be called by the web form or by a headless webhook.
+    Central Inbound Processing Engine for Aneevarp Solutions & Flagship Products:
+    - ZenResume (https://www.zenresume.online)
+    - ZenScout AI (https://ai-job-search-agent-chi.vercel.app)
     """
-    name = data.get("name")
+    product = data.get("product", "ZenResume")
+    name = data.get("name", "Anonymous Submitter")
     email = data.get("email", "")
-    website_url = data.get("website_url", "")
-    company = data.get("company")
-    role = data.get("role")
-    company_size = data.get("company_size")
-    message = data.get("message")
-    
-    print(f"\n--- New Lead Received ---")
-    log_text = f"Name: {name} | Email: {email} | Company: {company} | Website: {website_url}"
+    phone = data.get("phone", "")
+    inquiry_type = data.get("type", "general")
+    rating = data.get("rating", None)
+    company = data.get("company", "")
+    role = data.get("role", "")
+    message = data.get("message", "")
+
+    print(f"\n--- [Aneevarp Hub] New Inbound Submission ---")
+    log_text = f"Product: {product} | Name: {name} | Email: {email} | Type: {inquiry_type}"
     print(log_text.encode('ascii', 'replace').decode('ascii'))
-    
-    # 1. Email Domain Validation Check
-    if email and not is_b2b_email(email):
-        print("WARNING: Lead submitted with a public/free email domain (Fake entry risk).")
-        # For testing, we just print a warning. In production, we could outright reject it:
-        # return False, 0, "Rejected", "Public email domain rejected.", ""
 
-    # 2. Web Scraping for Hyper-Personalization
-    scraped_data = ""
-    if website_url:
-        print(f"Scraping website: {website_url}...")
-        scraped_data = scrape_website(website_url)
+    # 1. AI Analysis & Categorization via Gemini 2.5 Flash
+    print(f"Analyzing submission for {product} with Gemini AI...")
+    ai_result = analyze_inbound_inquiry(
+        product=product,
+        name=name,
+        email=email,
+        phone=phone,
+        message=message,
+        rating=rating,
+        inquiry_type=inquiry_type,
+        company=company,
+        role=role
+    )
 
-    # 3. Analyze with Gemini
-    print("AI is analyzing the lead...")
-    analysis = analyze_lead(name, email, company, role, company_size, message, scraped_data)
-    
-    is_fake_identity = analysis.get("is_fake_identity", False)
-    rejection_message = analysis.get("rejection_message", "")
-    
-    if is_fake_identity:
-        print(f"FRAUD DETECTED: {rejection_message}")
-        return False, 0, "Rejected", rejection_message, ""
-    
-    score = analysis.get("score", 0)
-    category = analysis.get("category", "Error")
-    reason = analysis.get("reason", "")
-    email_draft = analysis.get("email_draft", "")
-    
-    print(f"Result: {score}/100 [{category}]")
-    
-    # 4. Push to HubSpot
-    print("Pushing to HubSpot CRM...")
-    success = push_to_hubspot(name, email, company, score, category, reason, email_draft)
-    
-    if success:
-        # Trigger Alerts if Lead Score is 70 or above
-        if score >= 70:
-            print("HIGH-VALUE LEAD DETECTED! Triggering Alerts...")
-            send_email_alert(name, company, score, category, email_draft)
-            send_whatsapp_alert(name, company, score)
+    category = ai_result.get("category", "Customer Support")
+    priority = ai_result.get("priority", "Medium")
+    score = ai_result.get("score", 50)
+    summary = ai_result.get("summary", "")
+    email_draft = ai_result.get("email_draft", "")
+    action_items = ai_result.get("action_items", [])
 
-            print(f"Sending Auto-Responder to {email}...")
-            send_customer_autoresponder(name, email, company)
+    print(f"Result: Category='{category}' | Priority='{priority}' | Score={score}/100")
 
-    return success, score, category, reason, email_draft
+    # 2. Push to HubSpot CRM
+    crm_synced = False
+    if email:
+        print(f"Syncing contact to HubSpot CRM...")
+        crm_synced = push_to_hubspot(
+            name=name,
+            email=email,
+            phone=phone,
+            product=product,
+            category=category,
+            priority=priority,
+            score=score,
+            summary=summary,
+            email_draft=email_draft,
+            user_message=message,
+            rating=rating,
+            company=company,
+            role=role
+        )
+
+    # 3. Trigger Alerts for Operations Team & Founder
+    print("Dispatching Operations Notifications...")
+    # Email alert to central team
+    send_email_alert(
+        name=name,
+        email=email,
+        phone=phone,
+        product=product,
+        category=category,
+        priority=priority,
+        score=score,
+        summary=summary,
+        user_message=message,
+        email_draft=email_draft
+    )
+
+    # WhatsApp alert to Founder
+    send_whatsapp_alert(
+        name=name,
+        product=product,
+        category=category,
+        priority=priority,
+        score=score,
+        user_message=message,
+        rating=rating,
+        phone=phone,
+        email=email
+    )
+
+    # 4. Dispatch Autoresponder to Submitter
+    autoresponder_sent = False
+    if email:
+        print(f"Sending branded Aneevarp / {product} Autoresponder to {email}...")
+        autoresponder_sent = send_customer_autoresponder(
+            customer_name=name,
+            customer_email=email,
+            product=product,
+            category=category,
+            email_draft=email_draft
+        )
+
+    return {
+        "success": True,
+        "product": product,
+        "category": category,
+        "priority": priority,
+        "score": score,
+        "summary": summary,
+        "action_items": action_items,
+        "email_draft": email_draft,
+        "crm_synced": crm_synced,
+        "autoresponder_sent": autoresponder_sent
+    }
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/submit-lead", methods=["POST"])
-def submit_lead():
-    data = request.json
+
+@app.route("/api/inbound-lead", methods=["POST", "OPTIONS"])
+@app.route("/api/webhook", methods=["POST", "OPTIONS"])
+@app.route("/submit-lead", methods=["POST", "OPTIONS"])
+def inbound_lead_endpoint():
+    """
+    Main Multi-Product REST Endpoint for ZenResume & ZenScout AI.
+    Accepts JSON payloads from client websites or external webhooks.
+    """
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"status": "error", "message": "Invalid JSON body received"}), 400
+
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip()
+    message = data.get("message", "").strip()
+
+    if not name and not email and not message:
+        return jsonify({"status": "error", "message": "Payload must contain at least name, email, or message."}), 400
+
     try:
-        success, score, category, reason, email_draft = process_lead_data(data)
-        
-        if success:
-            return jsonify({
-                "status": "success",
-                "message": f"Lead processed! Score: {score} ({category}). Added to HubSpot.",
-                "score": score,
-                "category": category
-            })
-        else:
-            if category == "Rejected":
-                return jsonify({
-                    "status": "error",
-                    "message": reason
-                }), 400
-            return jsonify({
-                "status": "error",
-                "message": "Failed to process lead or push to CRM."
-            }), 500
+        result = process_inbound_ticket(data)
+        return jsonify({
+            "status": "success",
+            "message": f"Submission processed for {result['product']}! Categorized as {result['category']}.",
+            **result
+        }), 200
     except Exception as e:
         import traceback
-        with open("crash.log", "w", encoding="utf-8") as f:
-            f.write(traceback.format_exc())
-        return jsonify({"status": "error", "message": "Server crash: check crash.log"}), 500
+        trace = traceback.format_exc()
+        print(f"Error processing inbound ticket: {trace}")
+        return jsonify({
+            "status": "error",
+            "message": f"Server processing error: {str(e)}"
+        }), 500
 
-@app.route("/api/webhook", methods=["POST"])
-def webhook():
-    """
-    Enterprise Webhook endpoint. 
-    Third-party services (Zapier, Webflow, Custom Sites) can POST JSON here.
-    """
-    data = request.json
-    
-    # In a real enterprise app, we would check an API Key here for security
-    # api_key = request.headers.get("Authorization")
-    # if api_key != f"Bearer SECRET_KEY": return jsonify({"error": "Unauthorized"}), 401
-        
-    success, score, category, reason, email_draft = process_lead_data(data)
-    
-    if success:
-        return jsonify({"success": True, "lead_score": score, "status": "Processed"}), 200
-    else:
-        return jsonify({"success": False, "error": "Processing failed"}), 500
+
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    return jsonify({
+        "status": "healthy",
+        "service": "Aneevarp Solutions Inbound Hub",
+        "enterprise": "Aneevarp Solutions (UDYAM-AP-10-0144446)",
+        "products": [
+            {"name": "ZenResume", "url": "https://www.zenresume.online"},
+            {"name": "ZenScout AI", "url": "https://ai-job-search-agent-chi.vercel.app"}
+        ]
+    }), 200
+
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Return JSON instead of HTML for HTTP errors
     import traceback
-    with open("crash.log", "w", encoding="utf-8") as f:
-        f.write(traceback.format_exc())
+    trace = traceback.format_exc()
+    print(f"Unhandled Exception: {trace}")
     return jsonify({"status": "error", "message": f"Server Exception: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
